@@ -44,12 +44,15 @@ class AgentMultiStep:
             Regras importantes:
             1. Antes de escrever SQL, use `get_database_schema` para entender o esquema do banco e `get_table_sample`
              para ver exemplos de dados. Isso é crucial para evitar erros de sintaxe e lógica.
+            1.1. Use SOMENTE nomes de tabelas e colunas exatamente como aparecem no schema retornado pelas tools.
+            1.2. Nunca invente nomes em inglês se o schema estiver em português (ex.: não use orders/order_items).
             2. Gere apenas SELECT (com ou sem CTE WITH).
             3. Sempre retorne uma consulta executável no SQLite.
             4. Seja conservador com joins e filtros para evitar resultados incorretos.
             5. Se a pergunta for ambígua, faça suposições razoáveis e indique-as.
             6. Teste sua consulta usando `run_sql_query` antes de retorná-la. Se houver erros ou resultados inesperados,
             corrija a consulta e teste novamente.
+            7. Se `run_sql_query` retornar uma linha iniciando com '__SQL_ERROR__', leia o erro, ajuste a SQL e tente de novo.
             """
         )
 
@@ -79,7 +82,10 @@ class AgentMultiStep:
         def run_sql_query(ctx: RunContext[TextToSQLDeps], query: str) -> list[tuple]:
             """Executa SELECT/CTE com limite de segurança."""
             sql = db_ops.extract_sql(query)
-            return db_ops.execute_query(query=sql, db_path=ctx.deps.db_path, max_rows=100)
+            try:
+                return db_ops.execute_query(query=sql, db_path=ctx.deps.db_path, max_rows=100)
+            except Exception as exc:
+                return [("__SQL_ERROR__", str(exc), sql)]
 
 
 def create_text_to_sql_agent() -> Agent:
