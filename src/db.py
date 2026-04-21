@@ -113,6 +113,8 @@ def execute_query(query: str, db_path: str | None = None, max_rows: int = 100) -
 
 def extract_sql(text: str) -> str:
     """Extrai SQL de markdown/code-block ou trecho textual."""
+    text = text.strip()
+
     match = re.search(r"```(?:sql)?\s*\n?(.*?)\n?```", text, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(1).strip()
@@ -121,4 +123,9 @@ def extract_sql(text: str) -> str:
     if match:
         return match.group(1).strip()
 
-    return text.strip()
+    # Fallback: captura da primeira ocorrência de SELECT/WITH até o final, mesmo sem ';'.
+    match = re.search(r"\b(SELECT|WITH)\b", text, re.IGNORECASE)
+    if match:
+        return text[match.start():].strip()
+
+    return text
