@@ -19,14 +19,33 @@ class Colors:
     MAGENTA = "\033[35m"
 
 
+def _format_failed_candidates(failed_candidates: list[dict[str, Any]]) -> list[str]:
+    lines: list[str] = []
+    if not failed_candidates:
+        return lines
+
+    lines.append(f"{Colors.BOLD}{Colors.RED}🧪 DEBUG DE FALHAS POR CANDIDATO:{Colors.RESET}")
+    for idx, failed in enumerate(failed_candidates, start=1):
+        lines.append(
+            f"  {idx}. temp={failed.get('temperature')} stage={failed.get('stage', 'unknown')}"
+        )
+        lines.append(f"     erro: {failed.get('error', 'sem mensagem')}")
+        if failed.get("query"):
+            lines.append(f"     sql: {failed['query']}")
+
+    return lines
+
+
 def format_result(result: dict[str, Any]) -> str:
     """Formata o resultado de forma visual e clara."""
     if result["status"] != "ok":
-        return (
-            f"{Colors.RED}❌ Erro na geração de SQL{Colors.RESET}\n"
-            f"  Mensagem: {result['message']}\n"
-            f"  Falhas: {len(result['failed_candidates'])} candidatos falharam"
-        )
+        output = [
+            f"{Colors.RED}❌ Erro na geração de SQL{Colors.RESET}",
+            f"  Mensagem: {result['message']}",
+            f"  Falhas: {len(result['failed_candidates'])} candidatos falharam",
+        ]
+        output.extend(_format_failed_candidates(result.get("failed_candidates", [])))
+        return "\n".join(output)
 
     agreement = result["agreement"]
     query = result["query"]
@@ -48,6 +67,10 @@ def format_result(result: dict[str, Any]) -> str:
     output.append(f"  Consenso:     [{agreement_bar}] {Colors.YELLOW}{agreement_pct:.0f}%{Colors.RESET} ({agreement['votes']}/{agreement['total_valid']} candidatos)")
     output.append(f"  Temperaturas: {Colors.DIM}{agreement['temperatures']}{Colors.RESET}")
 
+    failed_candidates = result.get("failed_candidates", [])
+    if failed_candidates:
+        output.append(f"  Tentativas com falha: {Colors.YELLOW}{len(failed_candidates)}{Colors.RESET}")
+
     output.append(f"\n{Colors.BOLD}{Colors.CYAN}📈 RESULTADOS ({len(rows)} linhas):{Colors.RESET}")
 
     if not rows:
@@ -59,6 +82,8 @@ def format_result(result: dict[str, Any]) -> str:
 
         if len(rows) > max_rows_display:
             output.append(f"  {Colors.DIM}... e mais {len(rows) - max_rows_display} linhas{Colors.RESET}")
+
+    output.extend(["", *_format_failed_candidates(failed_candidates)])
 
     output.append(f"\n{Colors.BOLD}{'─' * 100}{Colors.RESET}")
 
