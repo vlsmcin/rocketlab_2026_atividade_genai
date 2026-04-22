@@ -3,9 +3,6 @@ import json
 import re
 from dataclasses import dataclass
 
-from .agent import TextToSQLDeps, create_text_to_sql_agent
-from . import db as db_ops
-
 from guardrails import Guard
 from guardrails.validators import (
     FailResult,
@@ -13,6 +10,9 @@ from guardrails.validators import (
     Validator,
     register_validator,
 )
+
+from . import db as db_ops
+from .agent import TextToSQLDeps, create_text_to_sql_agent
 
 
 @dataclass
@@ -137,14 +137,12 @@ class DatabaseQuestionValidator(Validator):
         if has_business_signal and has_analytics_signal:
             return PassResult()
 
-        # Perguntas mais abertas de análise ainda devem passar quando trazem
-        # um termo claro de negócio do schema, mesmo que o banco não use o
-        # mesmo vocabulário literal da pergunta.
         if has_business_signal and ("maior" in question_terms or "menor" in question_terms or "top" in question_terms):
             return PassResult()
 
         return FailResult(
-            error_message="Pergunta bloqueada: não está claramente ancorada no schema do banco de dados.")
+            error_message="Pergunta bloqueada: não está claramente ancorada no schema do banco de dados."
+        )
 
 
 def _run_guardrail(question: str, schema_text: str) -> dict[str, object]:
@@ -216,7 +214,6 @@ async def run_chase_self_consistency(
                 deps=deps,
                 model_settings={"temperature": temperature},
             )
-
         except Exception as exc:
             failed_candidates.append(
                 CandidateError(

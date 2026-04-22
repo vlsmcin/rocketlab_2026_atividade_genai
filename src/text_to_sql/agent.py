@@ -1,25 +1,26 @@
 import os
-from dotenv import load_dotenv
-from pydantic_ai.models.google import GoogleModel
-from pydantic_ai.providers.google import GoogleProvider
-from pydantic_ai import Agent, RunContext
-from pydantic import BaseModel, Field
 from dataclasses import dataclass
 
-try:
-    from . import db as db_ops
-except ImportError:
-    import db as db_ops
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.providers.google import GoogleProvider
+
+from . import db as db_ops
+
 
 @dataclass
 class TextToSQLDeps:
     db_path: str
     schema: str
 
+
 class SQLResult(BaseModel):
     query: str = Field(description="A consulta SQL gerada para responder à pergunta")
     result: list[tuple] = Field(description="Resultados da execução da consulta SQL, limitados a 100 linhas")
     confidence: float = Field(description="Confiança do modelo na consulta gerada, entre 0 e 1")
+
 
 class AgentMultiStep:
     def __init__(self):
@@ -31,7 +32,7 @@ class AgentMultiStep:
         api_key = os.getenv("GEMINI_API_KEY")
         provider = GoogleProvider(api_key=api_key)
         return GoogleModel("gemini-2.5-flash-lite", provider=provider)
-    
+
     def _create_agent(self) -> Agent:
         agent = Agent(
             self._call_model(),

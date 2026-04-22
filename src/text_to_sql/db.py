@@ -2,7 +2,7 @@ import re
 import sqlite3
 from pathlib import Path
 
-DEFAULT_DB_PATH = str(Path(__file__).resolve().parents[1] / "data" / "banco.db")
+DEFAULT_DB_PATH = str(Path(__file__).resolve().parents[2] / "data" / "banco.db")
 
 
 def _resolve_db_path(db_path: str | None = None) -> str:
@@ -123,7 +123,6 @@ def extract_sql(text: str) -> str:
     if match:
         return match.group(1).strip()
 
-    # Fallback: captura da primeira ocorrência de SELECT/WITH até o final, mesmo sem ';'.
     match = re.search(r"\b(SELECT|WITH)\b", text, re.IGNORECASE)
     if match:
         return text[match.start():].strip()
