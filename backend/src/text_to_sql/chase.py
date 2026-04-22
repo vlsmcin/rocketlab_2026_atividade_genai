@@ -1,19 +1,18 @@
+"""
+Executor de SQL usando CHASE (self-consistency).
+
+Gera múltiplas consultas SQL com diferentes temperaturas,
+valida semanticamente a pergunta do usuário,
+e escolhe a consulta com melhor consenso baseado no resultado.
+"""
+
 import hashlib
 import json
-import re
-import unicodedata
 from dataclasses import dataclass
-
-from guardrails import Guard
-from guardrails.validators import (
-    FailResult,
-    PassResult,
-    Validator,
-    register_validator,
-)
 
 from . import db as db_ops
 from .agent import TextToSQLDeps, create_text_to_sql_agent
+from .guardrail import run_guardrail
 
 
 @dataclass
@@ -33,7 +32,8 @@ class CandidateError:
 
 
 def _temperature_schedule(n_candidates: int) -> list[float]:
-    base = [0.0, 0.2, 0.4, 0.6, 0.8]
+    """Gera schedule de temperaturas para gerar múltiplas consultas."""
+    base = [0.3, 0.5, 0.7]
     if n_candidates <= len(base):
         return base[:n_candidates]
 
@@ -42,148 +42,15 @@ def _temperature_schedule(n_candidates: int) -> list[float]:
 
 
 def _result_signature(rows: list[tuple]) -> str:
-    payload = json.dumps([list(row) for row in rows], ensure_ascii=True, separators=(",", ":"))
+    """Cria assinatura SHA256 do resultado para comparar consenso."""
+    payload = json.dumps(
+        [list(row) for row in rows], ensure_ascii=True, separators=(",", ":")
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _schema_terms(schema_text: str) -> set[str]:
-    normalized_schema = unicodedata.normalize("NFKD", schema_text.lower())
-    normalized_schema = "".join(char for char in normalized_schema if not unicodedata.combining(char))
-    terms: set[str] = set()
-    for token in re.findall(r"[a-z0-9_]+", normalized_schema):
-        terms.add(token)
-        if "_" in token:
-            terms.update(part for part in token.split("_") if part)
-    return terms
-
-
-def _question_terms(question: str) -> set[str]:
-    normalized_question = unicodedata.normalize("NFKD", question.lower())
-    normalized_question = "".join(char for char in normalized_question if not unicodedata.combining(char))
-    return {token for token in re.findall(r"[a-z0-9_]+", normalized_question) if token}
-
-
-@register_validator(name="database-question", data_type="string")
-class DatabaseQuestionValidator(Validator):
-    def __init__(self, schema_text: str, on_fail=None, **kwargs):
-        super().__init__(on_fail=on_fail, schema_text=schema_text, **kwargs)
-        self.schema_text = schema_text
-
-    def validate(self, value, metadata) -> object:
-        question_terms = _question_terms(value)
-        schema_terms = _schema_terms(self.schema_text)
-        analytics_terms = {
-            "top",
-            "total",
-            "quantidade",
-            "contagem",
-            "media",
-            "media_geral",
-            "receita",
-            "taxa",
-            "ranking",
-            "maior",
-            "menor",
-            "percentual",
-            "percentagem",
-            "porcentagem",
-            "percent",
-            "prazo",
-            "entregue",
-            "entregues",
-            "comparar",
-            "comparacao",
-            "comparação",
-        }
-        business_terms = {
-            "pedido",
-            "pedidos",
-            "produto",
-            "produtos",
-            "categoria",
-            "categorias",
-            "estado",
-            "estados",
-            "avaliacao",
-            "avaliacoes",
-            "avaliação",
-            "avaliações",
-            "review",
-            "reviews",
-            "atraso",
-            "atrasos",
-            "vendedor",
-            "vendedores",
-            "cliente",
-            "clientes",
-            "consumidor",
-            "consumidores",
-        }
-        generic_terms = {
-            "poema",
-            "piada",
-            "clima",
-            "filme",
-            "música",
-            "musica",
-            "esporte",
-            "politica",
-            "política",
-            "religiao",
-            "religião",
-            "saude",
-            "saúde",
-            "noticia",
-            "notícias",
-            "noticias",
-        }
-
-        if question_terms & generic_terms:
-            return FailResult(error_message="Pergunta fora do domínio do banco de dados.")
-
-        has_business_signal = bool(question_terms & business_terms or question_terms & schema_terms)
-        has_analytics_signal = bool(question_terms & analytics_terms or "%" in value)
-
-        if has_business_signal and has_analytics_signal:
-            return PassResult()
-
-        if has_business_signal and ("maior" in question_terms or "menor" in question_terms or "top" in question_terms):
-            return PassResult()
-
-        if has_business_signal and {"por", "porcentagem", "percentual", "percent"} & question_terms:
-            return PassResult()
-
-        return FailResult(
-            error_message="Pergunta bloqueada: não está claramente ancorada no schema do banco de dados."
-        )
-
-
-def _run_guardrail(question: str, schema_text: str) -> dict[str, object]:
-    guard = Guard.for_string(
-        validators=[DatabaseQuestionValidator(schema_text=schema_text, on_fail="noop")],
-        string_description="Pergunta sobre banco de dados",
-        name="text-to-sql-guardrail",
-    )
-    outcome = guard.validate(question)
-
-    return {
-        "allowed": bool(getattr(outcome, "validation_passed", False)),
-        "score": 0,
-        "signals": [],
-        "reason": (
-            getattr(outcome, "error", None)
-            or getattr(outcome, "error_message", None)
-            or (
-                "Pergunta validada pelo guard rail."
-                if bool(getattr(outcome, "validation_passed", False))
-                else "Pergunta bloqueada pelo guard rail."
-            )
-        ),
-        "guardrails_used": True,
-    }
-
-
 def _build_grounded_prompt(question: str, schema_text: str) -> str:
+    """Constrói prompt com schema e pergunta para o agente."""
     return (
         "Use estritamente o schema abaixo. "
         "Nao invente tabelas/colunas fora da lista.\n\n"
@@ -192,14 +59,29 @@ def _build_grounded_prompt(question: str, schema_text: str) -> str:
     )
 
 
-async def run_chase_self_consistency(
+async def execute_sql(
     question: str,
     deps: TextToSQLDeps,
-    n_candidates: int = 5,
+    n_candidates: int = 3,
 ) -> dict:
-    """Executa self-consistency no estilo CHASE e escolhe o candidato por consenso de resultado."""
-    schema_text = deps.schema.strip() if deps.schema else db_ops.schema_as_text(deps.db_path)
-    guardrail_result = _run_guardrail(question, schema_text)
+    """
+    Executa self-consistency CHASE: gera múltiplas queries com diferentes
+    temperaturas e escolhe a melhor por consenso.
+
+    Args:
+        question: Pergunta do usuário
+        deps: Dependências (schema, db_path, etc.)
+        n_candidates: Número de candidatos a gerar
+
+    Returns:
+        Dict com status, query, resultado e detalhes de execução
+    """
+    schema_text = (
+        deps.schema.strip() if deps.schema else db_ops.schema_as_text(deps.db_path)
+    )
+
+    # Validar com guard rail (modelo LLM)
+    guardrail_result = await run_guardrail(question, schema_text)
     is_allowed = bool(guardrail_result["allowed"])
     guardrail_message = str(guardrail_result["reason"])
 
@@ -218,6 +100,7 @@ async def run_chase_self_consistency(
             },
         }
 
+    # Gerar múltiplas consultas com CHASE
     agent = create_text_to_sql_agent()
     temperatures = _temperature_schedule(max(1, n_candidates))
     grounded_prompt = _build_grounded_prompt(question, schema_text)
@@ -303,6 +186,7 @@ async def run_chase_self_consistency(
             "failed_candidates": [c.__dict__ for c in failed_candidates],
         }
 
+    # Consenso: agrupar por resultado
     groups: dict[str, list[Candidate]] = {}
     for candidate in valid_candidates:
         signature = _result_signature(candidate.result)
@@ -349,3 +233,7 @@ async def run_chase_self_consistency(
             "engine": "guardrails",
         },
     }
+
+
+# Manter compatibilidade: alias com nome anterior
+run_chase_self_consistency = execute_sql

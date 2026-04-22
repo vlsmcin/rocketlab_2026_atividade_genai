@@ -37,7 +37,7 @@ def format_result(result: dict[str, Any]) -> str:
     if result["status"] == "blocked":
         return (
             f"{Colors.YELLOW}⛔ Pergunta bloqueada pelo guard rail{Colors.RESET}\n"
-            f"  Motivo: {result['message']}"
+            f"  Motivo: pergunta fora do escopo ou inadequada."
         )
 
     if result["status"] != "ok":

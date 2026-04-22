@@ -13,7 +13,7 @@ async def run_text_to_sql(
     question: str,
     db_path: str | None = None,
     schema: str = "",
-    n_candidates: int = 4,
+    n_candidates: int = 3,
 ) -> dict[str, Any]:
     """Executa o agente CHASE e retorna o resultado estruturado."""
     deps = _build_deps(db_path=db_path, schema=schema)
