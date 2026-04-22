@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import unicodedata
 from dataclasses import dataclass
 
 from guardrails import Guard
@@ -46,8 +47,10 @@ def _result_signature(rows: list[tuple]) -> str:
 
 
 def _schema_terms(schema_text: str) -> set[str]:
+    normalized_schema = unicodedata.normalize("NFKD", schema_text.lower())
+    normalized_schema = "".join(char for char in normalized_schema if not unicodedata.combining(char))
     terms: set[str] = set()
-    for token in re.findall(r"[a-zA-Z0-9_]+", schema_text.lower()):
+    for token in re.findall(r"[a-z0-9_]+", normalized_schema):
         terms.add(token)
         if "_" in token:
             terms.update(part for part in token.split("_") if part)
@@ -55,7 +58,9 @@ def _schema_terms(schema_text: str) -> set[str]:
 
 
 def _question_terms(question: str) -> set[str]:
-    return {token for token in re.findall(r"[a-zA-Z0-9_]+", question.lower()) if token}
+    normalized_question = unicodedata.normalize("NFKD", question.lower())
+    normalized_question = "".join(char for char in normalized_question if not unicodedata.combining(char))
+    return {token for token in re.findall(r"[a-z0-9_]+", normalized_question) if token}
 
 
 @register_validator(name="database-question", data_type="string")
@@ -73,7 +78,7 @@ class DatabaseQuestionValidator(Validator):
             "quantidade",
             "contagem",
             "media",
-            "média",
+            "media_geral",
             "receita",
             "taxa",
             "ranking",
@@ -81,6 +86,11 @@ class DatabaseQuestionValidator(Validator):
             "menor",
             "percentual",
             "percentagem",
+            "porcentagem",
+            "percent",
+            "prazo",
+            "entregue",
+            "entregues",
             "comparar",
             "comparacao",
             "comparação",
@@ -132,12 +142,15 @@ class DatabaseQuestionValidator(Validator):
             return FailResult(error_message="Pergunta fora do domínio do banco de dados.")
 
         has_business_signal = bool(question_terms & business_terms or question_terms & schema_terms)
-        has_analytics_signal = bool(question_terms & analytics_terms)
+        has_analytics_signal = bool(question_terms & analytics_terms or "%" in value)
 
         if has_business_signal and has_analytics_signal:
             return PassResult()
 
         if has_business_signal and ("maior" in question_terms or "menor" in question_terms or "top" in question_terms):
+            return PassResult()
+
+        if has_business_signal and {"por", "porcentagem", "percentual", "percent"} & question_terms:
             return PassResult()
 
         return FailResult(
@@ -157,7 +170,15 @@ def _run_guardrail(question: str, schema_text: str) -> dict[str, object]:
         "allowed": bool(getattr(outcome, "validation_passed", False)),
         "score": 0,
         "signals": [],
-        "reason": getattr(outcome, "error", None) or getattr(outcome, "error_message", None) or "Pergunta validada pelo guard rail.",
+        "reason": (
+            getattr(outcome, "error", None)
+            or getattr(outcome, "error_message", None)
+            or (
+                "Pergunta validada pelo guard rail."
+                if bool(getattr(outcome, "validation_passed", False))
+                else "Pergunta bloqueada pelo guard rail."
+            )
+        ),
         "guardrails_used": True,
     }
 
