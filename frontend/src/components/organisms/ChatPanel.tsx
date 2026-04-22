@@ -23,7 +23,7 @@ export function ChatPanel() {
               Rocketlab Chat
             </p>
             <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
-              Chat simples para perguntas e respostas
+              Consultas e Análises de E-Commerce em Linguagem Natural
             </h1>
           </div>
         </header>
