@@ -15,23 +15,6 @@ class Colors:
     MAGENTA = "\033[35m"
 
 
-def _format_failed_candidates(failed_candidates: list[dict[str, Any]]) -> list[str]:
-    lines: list[str] = []
-    if not failed_candidates:
-        return lines
-
-    lines.append(f"{Colors.BOLD}{Colors.RED}🧪 DEBUG DE FALHAS POR CANDIDATO:{Colors.RESET}")
-    for idx, failed in enumerate(failed_candidates, start=1):
-        lines.append(
-            f"  {idx}. temp={failed.get('temperature')} stage={failed.get('stage', 'unknown')}"
-        )
-        lines.append(f"     erro: {failed.get('error', 'sem mensagem')}")
-        if failed.get("query"):
-            lines.append(f"     sql: {failed['query']}")
-
-    return lines
-
-
 def format_result(result: dict[str, Any]) -> str:
     """Formata o resultado de forma visual e clara."""
     if result["status"] == "blocked":
@@ -46,7 +29,6 @@ def format_result(result: dict[str, Any]) -> str:
             f"  Mensagem: {result['message']}",
             f"  Falhas: {len(result['failed_candidates'])} candidatos falharam",
         ]
-        output.extend(_format_failed_candidates(result.get("failed_candidates", [])))
         return "\n".join(output)
 
     agreement = result["agreement"]
@@ -84,8 +66,6 @@ def format_result(result: dict[str, Any]) -> str:
 
         if len(rows) > max_rows_display:
             output.append(f"  {Colors.DIM}... e mais {len(rows) - max_rows_display} linhas{Colors.RESET}")
-
-    output.extend(["", *_format_failed_candidates(failed_candidates)])
 
     output.append(f"\n{Colors.BOLD}{'─' * 100}{Colors.RESET}")
 

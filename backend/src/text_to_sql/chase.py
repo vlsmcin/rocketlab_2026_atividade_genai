@@ -33,7 +33,7 @@ class CandidateError:
 
 def _temperature_schedule(n_candidates: int) -> list[float]:
     """Gera schedule de temperaturas para gerar múltiplas consultas."""
-    base = [0.3, 0.5, 0.7]
+    base = [0.0, 0.2, 0.4]
     if n_candidates <= len(base):
         return base[:n_candidates]
 
