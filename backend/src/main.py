@@ -6,7 +6,7 @@ from .main_batch import run_batch_questions
 
 async def main() -> None:
     """Inicia um chat interativo no terminal para perguntas text-to-sql."""
-    print(f"\n{Colors.BOLD}{Colors.MAGENTA}💬 CHAT TEXT-TO-SQL (CHASE + GUARDRAILS){Colors.RESET}")
+    print(f"\n{Colors.BOLD}{Colors.MAGENTA}💬 CHAT TEXT-TO-SQL (CHASE){Colors.RESET}")
     print(f"{Colors.DIM}Digite sua pergunta sobre o banco de dados.{Colors.RESET}")
     print(f"{Colors.DIM}Comandos: /sair, /exit, /quit, /lote{Colors.RESET}\n")
 

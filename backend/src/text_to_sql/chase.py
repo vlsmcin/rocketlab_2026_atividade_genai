@@ -1,9 +1,8 @@
 """
 Executor de SQL usando CHASE (self-consistency).
 
-Gera múltiplas consultas SQL com diferentes temperaturas,
-valida semanticamente a pergunta do usuário,
-e escolhe a consulta com melhor consenso baseado no resultado.
+Gera múltiplas consultas SQL com diferentes temperaturas e escolhe
+ a consulta com melhor consenso baseado no resultado.
 """
 
 import hashlib
@@ -12,7 +11,6 @@ from dataclasses import dataclass
 
 from . import db as db_ops
 from .agent import TextToSQLDeps, create_text_to_sql_agent
-from .guardrail import run_guardrail
 
 
 @dataclass
@@ -80,27 +78,6 @@ async def execute_sql(
         deps.schema.strip() if deps.schema else db_ops.schema_as_text(deps.db_path)
     )
 
-    # Validar com guard rail (modelo LLM)
-    guardrail_result = await run_guardrail(question, schema_text)
-    is_allowed = bool(guardrail_result["allowed"])
-    guardrail_message = str(guardrail_result["reason"])
-
-    if not is_allowed:
-        return {
-            "status": "blocked",
-            "question": question,
-            "message": guardrail_message,
-            "failed_candidates": [],
-            "guardrail": {
-                "allowed": False,
-                "reason": guardrail_message,
-                "score": guardrail_result["score"],
-                "signals": guardrail_result["signals"],
-                "engine": "guardrails",
-            },
-        }
-
-    # Gerar múltiplas consultas com CHASE
     agent = create_text_to_sql_agent()
     temperatures = _temperature_schedule(max(1, n_candidates))
     grounded_prompt = _build_grounded_prompt(question, schema_text)
@@ -186,7 +163,6 @@ async def execute_sql(
             "failed_candidates": [c.__dict__ for c in failed_candidates],
         }
 
-    # Consenso: agrupar por resultado
     groups: dict[str, list[Candidate]] = {}
     for candidate in valid_candidates:
         signature = _result_signature(candidate.result)
@@ -225,15 +201,8 @@ async def execute_sql(
             "temperatures": [c.temperature for c in winning_group],
         },
         "failed_candidates": [c.__dict__ for c in failed_candidates],
-        "guardrail": {
-            "allowed": True,
-            "reason": guardrail_message,
-            "score": guardrail_result["score"],
-            "signals": guardrail_result["signals"],
-            "engine": "guardrails",
-        },
     }
 
 
-# Manter compatibilidade: alias com nome anterior
+# Mantém compatibilidade com o nome anterior usado no restante do projeto.
 run_chase_self_consistency = execute_sql

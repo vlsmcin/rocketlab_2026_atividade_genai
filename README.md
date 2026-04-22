@@ -2,7 +2,7 @@
 
 Projeto de Text-to-SQL para consultas e análises em um banco de dados de um Sistema de Gerenciamento de E-Commerce.
 
-O objetivo é permitir que usuários não técnicos façam perguntas em linguagem natural e recebam respostas baseadas em consultas SQL executadas diretamente no banco. O projeto também inclui guardrails, execução em lote para perguntas principais e uma interface visual opcional.
+O objetivo é permitir que usuários não técnicos façam perguntas em linguagem natural e recebam respostas baseadas em consultas SQL executadas diretamente no banco. O projeto também inclui execução em lote para perguntas principais e uma interface visual opcional.
 
 ## Requisitos do projeto
 
@@ -35,7 +35,7 @@ Obs: "Pedidos" ≈ "Vendas"
   - Produtos mais vendidos por estado
   - Categorias com maior taxa de avaliação negativa
 
-Também é possível explorar funcionalidades adicionais como guardrails, interface visual, gráficos e outras formas de análise.
+Também é possível explorar funcionalidades adicionais como interface visual, gráficos e outras formas de análise.
 
 ## Estrutura do projeto
 
@@ -59,7 +59,6 @@ backend/
       agent.py
       chase.py
       db.py
-      guardrail.py
 frontend/
   package.json
   pnpm-lock.yaml
@@ -220,7 +219,6 @@ uvicorn src.api.app:app --host 0.0.0.0 --port 8000
 - Sempre execute os comandos do backend a partir da pasta `backend`.
 - Sempre execute a interface visual a partir da pasta `frontend`.
 - Sempre suba o backend FastAPI antes de abrir a interface web.
-- O guardrail foi projetado para bloquear perguntas fora do escopo do banco e permitir perguntas legítimas sobre os dados, inclusive em linguagem mais abstrata.
 - O pipeline principal de Text-to-SQL usa CHASE com self-consistency e validação por consulta executada no banco.
 
 ## Exemplos de perguntas
