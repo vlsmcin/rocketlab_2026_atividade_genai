@@ -67,13 +67,80 @@ class DatabaseQuestionValidator(Validator):
     def validate(self, value, metadata) -> object:
         question_terms = _question_terms(value)
         schema_terms = _schema_terms(self.schema_text)
-        analytics_terms = {"top", "total", "quantidade", "contagem", "media", "média", "receita", "taxa", "ranking", "maior", "menor"}
-        generic_terms = {"poema", "piada", "clima", "filme", "música", "musica", "esporte", "politica", "política", "religiao", "religião", "saude", "saúde"}
+        analytics_terms = {
+            "top",
+            "total",
+            "quantidade",
+            "contagem",
+            "media",
+            "média",
+            "receita",
+            "taxa",
+            "ranking",
+            "maior",
+            "menor",
+            "percentual",
+            "percentagem",
+            "comparar",
+            "comparacao",
+            "comparação",
+        }
+        business_terms = {
+            "pedido",
+            "pedidos",
+            "produto",
+            "produtos",
+            "categoria",
+            "categorias",
+            "estado",
+            "estados",
+            "avaliacao",
+            "avaliacoes",
+            "avaliação",
+            "avaliações",
+            "review",
+            "reviews",
+            "atraso",
+            "atrasos",
+            "vendedor",
+            "vendedores",
+            "cliente",
+            "clientes",
+            "consumidor",
+            "consumidores",
+        }
+        generic_terms = {
+            "poema",
+            "piada",
+            "clima",
+            "filme",
+            "música",
+            "musica",
+            "esporte",
+            "politica",
+            "política",
+            "religiao",
+            "religião",
+            "saude",
+            "saúde",
+            "noticia",
+            "notícias",
+            "noticias",
+        }
 
         if question_terms & generic_terms:
             return FailResult(error_message="Pergunta fora do domínio do banco de dados.")
 
-        if (question_terms & schema_terms) or (question_terms & analytics_terms and question_terms & schema_terms):
+        has_business_signal = bool(question_terms & business_terms or question_terms & schema_terms)
+        has_analytics_signal = bool(question_terms & analytics_terms)
+
+        if has_business_signal and has_analytics_signal:
+            return PassResult()
+
+        # Perguntas mais abertas de análise ainda devem passar quando trazem
+        # um termo claro de negócio do schema, mesmo que o banco não use o
+        # mesmo vocabulário literal da pergunta.
+        if has_business_signal and ("maior" in question_terms or "menor" in question_terms or "top" in question_terms):
             return PassResult()
 
         return FailResult(
