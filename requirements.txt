@@ -2,3 +2,4 @@ pydantic-ai-slim[google]
 pandas
 nest_asyncio
 dotenv
+guardrails-ai
