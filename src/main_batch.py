@@ -1,6 +1,7 @@
 import asyncio
 
-from .app_core import Colors, format_result, run_text_to_sql
+from .formatters import Colors, format_result
+from .services import run_text_to_sql
 
 
 async def run_batch_questions() -> None:

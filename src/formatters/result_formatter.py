@@ -1,9 +1,5 @@
 from typing import Any
 
-from .agent import TextToSQLDeps
-from .chase import run_chase_self_consistency
-from .db import DEFAULT_DB_PATH
-
 
 class Colors:
     """ANSI color codes for terminal output."""
@@ -94,10 +90,3 @@ def format_result(result: dict[str, Any]) -> str:
     output.append(f"\n{Colors.BOLD}{'─' * 100}{Colors.RESET}")
 
     return "\n".join(output)
-
-
-async def run_text_to_sql(question: str) -> dict[str, Any]:
-    """Executa o agente CHASE e retorna o resultado estruturado."""
-    deps = TextToSQLDeps(db_path=DEFAULT_DB_PATH, schema="")
-    result = await run_chase_self_consistency(question=question, deps=deps, n_candidates=4)
-    return result
